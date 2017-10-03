@@ -11,13 +11,6 @@ and execute using
 #include <arpa/inet.h> 
 #include "CPU.h"
 
-typedef struct branch_hash
-{
-    int size = 64;	/* the size of the table */
-    list **table;	/* the table elements */
-} branch_hash;
-
-
 int main(int argc, char **argv)
 {
 	struct trace_item *tr_entry;
@@ -35,8 +28,11 @@ int main(int argc, char **argv)
 	int prediction_method = 0;
 	int stop = -1;
 	int flag = 0;
-	int branchFlag = 0;
-	int branchStop = 0;
+	int branch_flag = 0;
+	int branch_stop = 0;
+	int branch_mask = (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7) | (1 << 8) | (1 << 9);
+	unsigned int branch_address;
+	int branch_table[64];
 
 	unsigned char t_type = 0;
 	unsigned char t_sReg_a= 0;
@@ -98,8 +94,8 @@ int main(int argc, char **argv)
 			{
 				if(ID.PC - EX.PC != 4)
 				{
-					branchFlag = 1;
-					branchStop = cycle_number + 2;
+					branch_flag = 1;
+					branch_stop = cycle_number + 2;
 				}
 		
 				size = trace_get_item(&tr_entry);
@@ -109,6 +105,11 @@ int main(int argc, char **argv)
 			if(prediction_method == 1)
 			{
 				// Impliment 64 Entry Hash Table
+				// Mask Bits To Get 9-4 Of Address
+				branch_address = EX.Addr & branch_mask;
+				
+				// TODO replace 1 with prediction
+				branch_table[branch_address] = 1;
 				size = trace_get_item(&tr_entry);
 			}
 			
@@ -126,7 +127,7 @@ int main(int argc, char **argv)
 		}
 
 		// Branch Control
-		if((cycle_number == branchStop) && branchFlag == 1)
+		if((cycle_number == branch_stop) && branch_flag == 1)
 		{
 			cycle_number++;
 			printf("[cycle %d]",cycle_number);
