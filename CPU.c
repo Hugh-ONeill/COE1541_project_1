@@ -9,7 +9,14 @@ and execute using
 #include <stdio.h>
 #include <inttypes.h>
 #include <arpa/inet.h> 
-#include "CPU.h" 
+#include "CPU.h"
+
+typedef struct branch_hash
+{
+    int size = 64;	/* the size of the table */
+    list **table;	/* the table elements */
+} branch_hash;
+
 
 int main(int argc, char **argv)
 {
@@ -20,7 +27,7 @@ int main(int argc, char **argv)
 	struct trace_item ID;
 	struct trace_item EX;
 	struct trace_item MEM;
-	struct trace_item WB; 	
+	struct trace_item WB;
 	
 	size_t size;
 	char *trace_file_name;
@@ -39,6 +46,7 @@ int main(int argc, char **argv)
 	unsigned int t_Addr = 0;
 	unsigned int cycle_number = 0;
 
+	// Handling Inputs
 	if (argc == 3)
 	{
 		trace_file_name = argv[1];
@@ -62,9 +70,9 @@ int main(int argc, char **argv)
 		exit(0);
 	}
 
+	// Checking File
 	fprintf(stdout, "\n ** opening file %s\n", trace_file_name);
 	trace_fd = fopen(trace_file_name, "rb");
-
 	if (!trace_fd)
 	{
 		fprintf(stdout, "\ntrace file %s not opened.\n\n", trace_file_name);
@@ -73,20 +81,21 @@ int main(int argc, char **argv)
 
 	trace_init();
 
+	// Start Processes
 	while(1)
 	{
-
 		if((EX.type == 3) && (EX.dReg == IF.sReg_a || EX.dReg == IF.sReg_b))
 		{
 			*tr_entry = IF;
 			IF = ID;
 			ID.type = 0;
 		}
+		// Branch Prediction
 		else if(EX.type == 5)
 		{
+			// Not Taken
 			if (prediction_method == 0)
 			{
-			
 				if(ID.PC - EX.PC != 4)
 				{
 					branchFlag = 1;
@@ -95,25 +104,28 @@ int main(int argc, char **argv)
 		
 				size = trace_get_item(&tr_entry);
 			}
-			
+			// TODO
+			// Always Taken
 			if(prediction_method == 1)
 			{
+				// Impliment 64 Entry Hash Table
 				size = trace_get_item(&tr_entry);
 			}
+			
 		}
-		//EDIT: we need to make sure it stops if hazard is last instruction
+		// Stop When Hazard Last Instruction
 		else
 		{
 			size = trace_get_item(&tr_entry);
-
 			if(cycle_number == stop)
 			{
 				printf("+ Simulation terminates at cycle : %u\n", cycle_number);
 				break;
 			}
+			
 		}
 
-		//branch control
+		// Branch Control
 		if((cycle_number == branchStop) && branchFlag == 1)
 		{
 			cycle_number++;
@@ -142,7 +154,6 @@ int main(int argc, char **argv)
 		cycle_number++;
 
 		/* 
-
 		t_type = tr_entry->type;
 		t_sReg_a = tr_entry->sReg_a;
 		t_sReg_b = tr_entry->sReg_b;
@@ -151,10 +162,9 @@ int main(int argc, char **argv)
 		t_Addr = tr_entry->Addr;
 		*/
 
-		// print the executed instruction if trace_view_on=1
+		// Print Executed Instructions (trace_view_on=1)
 		if (trace_view_on)
 		{
-			//simulate 5 stage pipeline. Print out cycle, then for loop switch 	
 			printf("[cycle %d]",cycle_number);
 			switch(WB.type)
 			{
@@ -183,7 +193,7 @@ int main(int argc, char **argv)
 					break;
 				case ti_JTYPE:
 					printf("JTYPE:");
-					printf(" (PC: %x)(addr: %x)\n", WB.PC,WB.Addr);
+					printf(" (PC: %x)(addr: %x)\n", WB.PC, WB.Addr);
 					break;
 				case ti_SPECIAL:
 					printf("SPECIAL:\n");			
