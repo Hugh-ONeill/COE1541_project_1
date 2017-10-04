@@ -17,15 +17,15 @@ enum trace_item_type {
 
 struct trace_item {
 	unsigned char type;			// see above
-	unsigned char sReg_a;			// 1st operand
-	unsigned char sReg_b;			// 2nd operand
+	unsigned char sReg_a;		// 1st operand
+	unsigned char sReg_b;		// 2nd operand
 	unsigned char dReg;			// dest. operand
 	unsigned int PC;			// program counter
 	unsigned int Addr;			// mem. address
 };
 
 
-//IF, IF, EX, MEM, WB
+//IF, ID, EX, MEM, WB
 #endif
 
 #define TRACE_BUFSIZE 1024*1024

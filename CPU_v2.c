@@ -31,9 +31,13 @@ int main(int argc, char **argv)
 	int branch_flag = 0;
 	int branch_stop = 0;
 	int branch_mask = (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7) | (1 << 8) | (1 << 9);
-	unsigned int branch_address;
-	unsigned int prev_branch_address;
+	unsigned int last_result_addr;
+	unsigned int branch_addr;
+	unsigned int prev_branch_addr;
+	int prediction;
 	int branch_table[64][3];
+	unsigned int pos_row;
+	unsigned int pos_col;
 
 	unsigned char t_type = 0;
 	unsigned char t_sReg_a= 0;
@@ -77,10 +81,30 @@ int main(int argc, char **argv)
 	}
 
 	trace_init();
+	
+	// Initialize Branch Table
+	for (pos_row = 0; pos_row < 63; pos_row++)
+	{
+		for (pos_col = 0; pos_col < 2; pos_col++)
+		{
+			branch_table[pos_row][pos_col] = -1;
+		}
+	}
 
 	// Start Processes
 	while(1)
 	{
+		// IF Processing
+		printf("[IF: type: %d]\n", IF.type);
+		if((prediction_method == 1) && (IF.type == 5))
+		{
+			last_result_addr = (IF.PC & branch_mask) >> 4;
+			printf("[IF: addr: %x]\n", last_result_addr);
+			prediction = branch_table[last_result_addr][0];
+			//printf("[prediction IF %d]\n", prediction);
+		}
+		
+		// EX Processing
 		if((EX.type == 3) && (EX.dReg == IF.sReg_a || EX.dReg == IF.sReg_b))
 		{
 			*tr_entry = IF;
@@ -109,35 +133,23 @@ int main(int argc, char **argv)
 			// TODO
 			// Predict Last Branch Condition
 			if(prediction_method == 1)
-			{
-				// (EX.Addr - 4) seems not correct
-				prev_branch_address = (EX.Addr - 4) & branch_mask;
-				if (branch_table[prev_branch_address][0] == 1)
-				{
-					branch_flag = 1;
-					branch_stop = cycle_number + 2;
-				}
-				else
-				{
-					// Predict Not Taken
-				}
-				
+			{				
 				// Impliment 64 Entry Hash Table
 				// Mask Bits To Get 9-4 Of Address
-				branch_address = EX.Addr & branch_mask;
-				branch_table[branch_address][1] = EX.PC;
+				branch_addr = (EX.Addr & branch_mask) >> 4;
+				branch_table[branch_addr][1] = EX.PC;
 				
 				// Branch Taken? Untaken = 0? I'm not sure how to detect that
 				// Somewhere, we have the last address come to mean what we predict next
 				if(ID.PC - EX.PC != 4)
 				{
-					branch_table[branch_address][0] = 1;
-					branch_table[branch_address][1] = EX.Addr;
+					branch_table[branch_addr][0] = 1;
+					branch_table[branch_addr][1] = EX.Addr;
 				}
 				else
 				{					
-					branch_table[branch_address][0] = 0;
-					branch_table[branch_address][1] = EX.PC + 4;
+					branch_table[branch_addr][0] = 0;
+					branch_table[branch_addr][1] = EX.PC + 4;
 				}
 				
 				size = trace_get_item(&tr_entry);
