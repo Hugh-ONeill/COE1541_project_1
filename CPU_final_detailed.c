@@ -131,24 +131,12 @@ int main(int argc, char **argv)
 	// Initialize Branch Table
 	for (pos_row = 0; pos_row < 63; pos_row++)
 	{
-		//for (pos_col = 0; pos_col < 2; pos_col++)
-		//{
 		branch_table[pos_row] = -1;
-		//}
 	}
 
 	// Start Processes
 	while(1)
 	{
-		// IF Processing
-		//if((prediction_method == 1) && (IF.type == 5))
-		//{
-		//	last_result_addr = (IF.Addr & branch_mask) >> 4;
-		//	printf("[IF: addr: %x]\n", last_result_addr);
-		//	prediction = branch_table[last_result_addr][0];
-		//	printf("[prediction IF %d]\n", prediction);
-		//}
-		
 		// EX Processing
 		// Data Hazard
 		if((EX.type == 3) && (EX.dReg == IF.sReg_a || EX.dReg == IF.sReg_b))
@@ -251,8 +239,7 @@ int main(int argc, char **argv)
 		MEM = EX;
 		EX = ID;
 		ID = IF;
-
-		// What is this?
+		
 		if(size)
 		{
 			IF = *tr_entry;
@@ -265,15 +252,6 @@ int main(int argc, char **argv)
 		}
 		cycle_number++;
 
-		/* 
-		t_type = tr_entry->type;
-		t_sReg_a = tr_entry->sReg_a;
-		t_sReg_b = tr_entry->sReg_b;
-		t_dReg = tr_entry->dReg;
-		t_PC = tr_entry->PC;
-		t_Addr = tr_entry->Addr;
-		*/
-
 		// Print Executed Instructions (trace_view_on=1)
 		if (trace_view_on)
 		{
@@ -284,12 +262,6 @@ int main(int argc, char **argv)
 			trace_view(MEM, cycle_number, "MEM");
 			trace_view(WB, cycle_number, "WB");
 		}
-		
-		// TEST
-		//if (cycle_number > 100)
-		//{
-		//	break;
-		//}
 	}
 
 	trace_uninit();

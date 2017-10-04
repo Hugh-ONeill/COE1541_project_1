@@ -11,48 +11,47 @@ and execute using
 #include <arpa/inet.h> 
 #include "CPU.h"
 
-void trace_view(struct trace_item stage, int cycle_number, char* name)
+void trace_view(struct trace_item stage, int cycle_number)
 {
-	printf("[%s]\t", name);
-	printf("[cycle %d]\t", cycle_number);
+	printf("[cycle %d]", cycle_number);
 	switch(stage.type)
 	{
 		case ti_NOP:
 			printf("NOP:\n");
 			break;
 		case ti_RTYPE:
-			printf("RTYPE:\t");
+			printf("RTYPE:");
 			printf(" (PC: %x)(sReg_a: %xd)(sReg_b: %d)(dReg: %d)\n", stage.PC, stage.sReg_a, stage.sReg_b, stage.dReg);
 			break;
 		case ti_ITYPE:
-			printf("ITYPE:\t");
+			printf("ITYPE:");
 			printf(" (PC: %x)(sReg_a: %d)(dReg: %d)(addr: %x)\n", stage.PC, stage.sReg_a, stage.dReg, stage.Addr);
 			break;
 		case ti_LOAD:
-			printf("LOAD:\t");		 
+			printf("LOAD:");		 
 			printf(" (PC: %x)(sReg_a: %d)(dReg: %d)(addr: %x)\n", stage.PC, stage.sReg_a, stage.dReg, stage.Addr);
 			break;
 		case ti_STORE:
-			printf("STORE:\t");	  
+			printf("STORE:");	  
 			printf(" (PC: %x)(sReg_a: %d)(sReg_b: %d)(addr: %x)\n", stage.PC, stage.sReg_a, stage.sReg_b, stage.Addr);
 			break;
 		case ti_BRANCH:
-			printf("BRANCH:\t");
+			printf("BRANCH:");
 			printf(" (PC: %x)(sReg_a: %d)(sReg_b: %d)(addr: %x)\n", stage.PC, stage.sReg_a, stage.sReg_b, stage.Addr);
 			break;
 		case ti_JTYPE:
-			printf("JTYPE:\t");
+			printf("JTYPE:");
 			printf(" (PC: %x)(addr: %x)\n", stage.PC, stage.Addr);
 			break;
 		case ti_SPECIAL:
 			printf("SPECIAL:\n");			
 			break;
 		case ti_JRTYPE:
-			printf("JRTYPE:\t");
+			printf("JRTYPE:");
 			printf(" (PC: %x) (sReg_a: %d)(addr: %x)\n", stage.PC, stage.dReg, stage.Addr);
 			break;
-		default :
-			printf("NOP (%d):\n", stage.type);
+		default:
+			printf("\n");
 			break;
 	}
 }
@@ -131,24 +130,12 @@ int main(int argc, char **argv)
 	// Initialize Branch Table
 	for (pos_row = 0; pos_row < 63; pos_row++)
 	{
-		//for (pos_col = 0; pos_col < 2; pos_col++)
-		//{
 		branch_table[pos_row] = -1;
-		//}
 	}
 
 	// Start Processes
 	while(1)
 	{
-		// IF Processing
-		//if((prediction_method == 1) && (IF.type == 5))
-		//{
-		//	last_result_addr = (IF.Addr & branch_mask) >> 4;
-		//	printf("[IF: addr: %x]\n", last_result_addr);
-		//	prediction = branch_table[last_result_addr][0];
-		//	printf("[prediction IF %d]\n", prediction);
-		//}
-		
 		// EX Processing
 		// Data Hazard
 		if((EX.type == 3) && (EX.dReg == IF.sReg_a || EX.dReg == IF.sReg_b))
@@ -156,10 +143,6 @@ int main(int argc, char **argv)
 			*tr_entry = IF;
 			IF = ID;
 			ID.type = 0;
-			if (trace_view_on)
-			{
-				printf("DATA HAZARD DETECTED! STALLING.\n");
-			}
 		}
 		// Branch Prediction
 		else if(EX.type == 5)
@@ -189,10 +172,6 @@ int main(int argc, char **argv)
 				// Compare Prediction To Current
 				if(ID.PC - EX.PC != 4)
 				{
-					if (trace_view_on)
-					{
-						printf("[Prediction]:\t%d\n[Actual]:\t1\n", branch_table[branch_addr]);
-					}
 					if (branch_table[branch_addr] != 1)
 					{
 						branch_flag = 1;
@@ -202,10 +181,6 @@ int main(int argc, char **argv)
 				}
 				else
 				{
-					if (trace_view_on)
-					{
-						printf("[Prediction]:\t%d\n[Actual]:\t0\n", branch_table[branch_addr]);
-					}
 					branch_table[branch_addr] = 0;
 				}
 				
@@ -233,16 +208,12 @@ int main(int argc, char **argv)
 			cycle_number++;
 			if (trace_view_on)
 			{
-				printf("------------------------------------------------------------------------------------------------\n");
-				printf("\t[cycle %d]",cycle_number);
-				printf("\tSQUASHED!\n");
+				printf("[cycle %d]SQUASHED!\n", cycle_number);
 			}
 			cycle_number++;
 			if (trace_view_on)
 			{
-				printf("------------------------------------------------------------------------------------------------\n");
-				printf("\t[cycle %d]",cycle_number);
-				printf("\tSQUASHED!\n");
+				printf("[cycle %d]SQUASHED!\n", cycle_number);
 			}
 		}
 		
@@ -251,8 +222,7 @@ int main(int argc, char **argv)
 		MEM = EX;
 		EX = ID;
 		ID = IF;
-
-		// What is this?
+		
 		if(size)
 		{
 			IF = *tr_entry;
@@ -265,31 +235,11 @@ int main(int argc, char **argv)
 		}
 		cycle_number++;
 
-		/* 
-		t_type = tr_entry->type;
-		t_sReg_a = tr_entry->sReg_a;
-		t_sReg_b = tr_entry->sReg_b;
-		t_dReg = tr_entry->dReg;
-		t_PC = tr_entry->PC;
-		t_Addr = tr_entry->Addr;
-		*/
-
 		// Print Executed Instructions (trace_view_on=1)
 		if (trace_view_on)
 		{
-			printf("------------------------------------------------------------------------------------------------\n");
-			trace_view(IF, cycle_number, "IF");
-			trace_view(ID, cycle_number, "ID");
-			trace_view(EX, cycle_number, "EX");
-			trace_view(MEM, cycle_number, "MEM");
-			trace_view(WB, cycle_number, "WB");
+			trace_view(WB, cycle_number);
 		}
-		
-		// TEST
-		//if (cycle_number > 100)
-		//{
-		//	break;
-		//}
 	}
 
 	trace_uninit();
