@@ -109,7 +109,20 @@ int main(int argc, char **argv)
 				branch_address = EX.Addr & branch_mask;
 				
 				// TODO replace 1 with prediction
-				branch_table[branch_address] = 1;
+				if(ID.PC - EX.PC != 4)
+				{
+					branch_table[branch_address] = 0;
+				}
+				else
+				{
+					branch_flag = 1;
+					branch_stop = cycle_number + 2;
+					
+					// Branch Taken? Untaken = 0? I'm not sure how to detect that
+					// Somewhere, we have the last address come to mean what we predict next
+					branch_table[branch_address] = 1;
+				}
+				
 				size = trace_get_item(&tr_entry);
 			}
 			
