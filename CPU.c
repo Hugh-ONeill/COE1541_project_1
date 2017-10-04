@@ -32,7 +32,8 @@ int main(int argc, char **argv)
 	int branch_stop = 0;
 	int branch_mask = (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7) | (1 << 8) | (1 << 9);
 	unsigned int branch_address;
-	int branch_table[64];
+	unsigned int prev_branch_address;
+	int branch_table[64] = {[0 ... 63] = -1};
 
 	unsigned char t_type = 0;
 	unsigned char t_sReg_a= 0;
@@ -101,23 +102,31 @@ int main(int argc, char **argv)
 				size = trace_get_item(&tr_entry);
 			}
 			// TODO
-			// Always Taken
+			// Predict Last Result
 			if(prediction_method == 1)
 			{
+				// (EX.Addr - 4) seems not correct
+				prev_branch_address = (EX.Addr - 4) & branch_mask;
+				if (branch_table[prev_branch_address] == 1)
+				{
+					branch_flag = 1;
+					branch_stop = cycle_number + 2;
+				}
+				else
+				{
+					// Predict Not Taken
+				}
+				
 				// Impliment 64 Entry Hash Table
 				// Mask Bits To Get 9-4 Of Address
 				branch_address = EX.Addr & branch_mask;
 				
-				// TODO replace 1 with prediction
-				if(ID.PC - EX.PC != 4)
+				if(ID.PC - EX.PC == 4)
 				{
 					branch_table[branch_address] = 0;
 				}
 				else
-				{
-					branch_flag = 1;
-					branch_stop = cycle_number + 2;
-					
+				{					
 					// Branch Taken? Untaken = 0? I'm not sure how to detect that
 					// Somewhere, we have the last address come to mean what we predict next
 					branch_table[branch_address] = 1;
