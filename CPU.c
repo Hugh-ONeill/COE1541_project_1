@@ -12,7 +12,7 @@ and execute using
 
 void trace_view(struct trace_item stage, int cycle_number)
 {
-	printf("[cycle %d]", cycle_number);
+	printf("[cycle %d] ", cycle_number);
 	switch(stage.type)
 	{
 		case ti_NOP:
