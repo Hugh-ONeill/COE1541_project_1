@@ -11,9 +11,9 @@ and execute using
 #include <arpa/inet.h> 
 #include "CPU.h"
 
-void trace_view(struct trace_item stage, int cycle_number, char* name)
+void trace_view(struct trace_item stage, int cycle_number)
 {
-	printf("[cycle %d]\t", cycle_number);
+	printf("[cycle %d]", cycle_number);
 	switch(stage.type)
 	{
 		case ti_NOP:
@@ -243,12 +243,12 @@ int main(int argc, char **argv)
 			cycle_number++;
 			if (trace_view_on)
 			{
-				printf("[cycle %d]\tSQUASHED!\n", cycle_number);
+				printf("[cycle %d]SQUASHED!\n", cycle_number);
 			}
 			cycle_number++;
 			if (trace_view_on)
 			{
-				printf("[cycle %d]\tSQUASHED!\n", cycle_number);
+				printf("[cycle %d]SQUASHED!\n", cycle_number);
 			}
 			squash_table[squash_pos] = 0;
 		}
