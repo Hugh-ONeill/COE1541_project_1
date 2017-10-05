@@ -80,8 +80,8 @@ int main(int argc, char **argv)
 	char *trace_file_name;
 	int trace_view_on = 0;
 	int prediction_method = 0;
-	int stop = -1;
-	int flag = 0;
+	int stop_counter = 0;
+	int stop_flag = 0;
 	int branch_flag = 0;
 	int branch_stop = 0;
 	int branch_mask = 1008;//(1 << 4) | (1 << 5) | (1 << 6) | (1 << 7) | (1 << 8) | (1 << 9);
@@ -284,7 +284,7 @@ int main(int argc, char **argv)
 				IF_1 = B;
 				IF_2 = A;
 			}
-			break;		
+			break;
 		}
 
 		// IF Processing
@@ -411,7 +411,7 @@ int main(int argc, char **argv)
 			else if (branch_flag == 1)
 			{
 				IF_1 = BRANCH_TEMP_1_1;
-				IF_2 = BRANCH_TEMP_2_2;
+				IF_2 = BRANCH_TEMP_1_2;
 			}
 			branch_flag--;
 		}
