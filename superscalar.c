@@ -49,9 +49,6 @@ void trace_view(struct trace_item stage, int cycle_number)
 			printf("JRTYPE:");
 			printf(" (PC: %x) (sReg_a: %d)(addr: %x)\n", stage.PC, stage.dReg, stage.Addr);
 			break;
-		default :
-			printf("NOP:\n");
-			break;
 	}
 }
 
@@ -64,17 +61,20 @@ int main(int argc, char **argv)
 	struct trace_item instruction_buffer[2];
 	struct trace_item *tr_entry;
 	struct trace_item IF_1;
-	struct trace_item temp1;
-	struct trace_item temp2;
+	struct trace_item BRANCH_TEMP_1_1;
+	struct trace_item BRANCH_TEMP_2_1;
 	struct trace_item ID_1;
 	struct trace_item EX_1;
 	struct trace_item MEM_1;
 	struct trace_item WB_1;
 	struct trace_item IF_2;
+	struct trace_item BRANCH_TEMP_1_2;
+	struct trace_item BRANCH_TEMP_2_2;
 	struct trace_item ID_2;
 	struct trace_item EX_2;
 	struct trace_item MEM_2;
 	struct trace_item WB_2;
+
 	
 	size_t size;
 	char *trace_file_name;
@@ -108,22 +108,20 @@ int main(int argc, char **argv)
 	unsigned int cycle_number = 0;
 
 	// Handling Inputs
-	if (argc == 3)
+	if (argc == 2)
 	{
 		trace_file_name = argv[1];
-		trace_view_on = atoi(argv[2]);
 	}
-	else if (argc == 2)
+	else if (argc == 3)
 	{
 		trace_file_name = argv[1];
-		trace_view_on = 0;
-		prediction_method = 0;
+		prediction_method = atoi(argv[2]);
 	}
 	else if (argc == 4)
 	{ 
 		trace_file_name = argv[1];
-		trace_view_on = atoi(argv[3]); 
 		prediction_method = atoi(argv[2]);
+		trace_view_on = atoi(argv[3]); 
 	}
 	else
 	{
@@ -132,7 +130,6 @@ int main(int argc, char **argv)
 		fprintf(stdout, "\n which prediction method \n");
 		exit(0);
 	}
-
 
 	// Checking File
 	fprintf(stdout, "\n ** opening file %s\n", trace_file_name);
@@ -322,14 +319,24 @@ int main(int argc, char **argv)
 				// Branch Was Taken
 				if(ID_2.PC - EX_2.PC != 4)
 				{
-					squash_table[squash_pos] = 1;
+					BRANCH_TEMP_1_1 = IF_1;
+					BRANCH_TEMP_2_1 = ID_1;
+						
+					IF_1.type = 0;
+					ID_1.type = 0;
+					
+					BRANCH_TEMP_1_2 = IF_2;
+					BRANCH_TEMP_2_2 = ID_2;
+						
+					IF_2.type = 0;
+					ID_2.type = 0;
+						
+					branch_flag = 2;
 				}
 				else
 				{
 					// Branch Was Not Taken
 				}
-		
-				size = trace_get_item(&tr_entry);
 			}
 			// Log Actual Result
 			if(prediction_method == 1)
@@ -348,7 +355,19 @@ int main(int argc, char **argv)
 					// Prediction != 1
 					if (prediction != 1)
 					{
-						squash_table[squash_pos] = 1;
+						BRANCH_TEMP_1_1 = IF_1;
+						BRANCH_TEMP_2_1 = ID_1;
+							
+						IF_1.type = 0;
+						ID_1.type = 0;
+						
+						BRANCH_TEMP_1_2 = IF_2;
+						BRANCH_TEMP_2_2 = ID_2;
+							
+						IF_2.type = 0;
+						ID_2.type = 0;
+							
+						branch_flag = 2;
 					}
 					branch_table[branch_index][0] = 1;
 					branch_table[branch_index][2] = EX_2.Addr;
@@ -358,47 +377,17 @@ int main(int argc, char **argv)
 					branch_table[branch_index][0] = 0;
 					branch_table[branch_index][2] = EX_2.PC + 4;
 				}
-				
-				size = trace_get_item(&tr_entry);
 			}
 			
 		}
 		// Stop When Hazard Last Instruction
 		else
 		{
-			size = trace_get_item(&tr_entry);
-			if(cycle_number == stop)
+			if(stop_counter >= 4)
 			{
 				printf("+ Simulation terminates at cycle : %u\n", cycle_number);
 				break;
 			}
-			
-		}
-		
-		// When EX Instruction is in WB stage, squash_pos will be the same
-		squash_pos++;
-		if (squash_pos > 2)
-		{
-			squash_pos = 0;
-		}
-
-		// Branch Control
-		if(squash_table[squash_pos] == 1)
-		{
-			// Insert Squashed "Cycles"
-			cycle_number++;
-			if (trace_view_on)
-			{
-				printf("[cycle %d]SQUASHED!\n", cycle_number);
-				printf("[cycle %d]SQUASHED!\n", cycle_number);
-			}
-			cycle_number++;
-			if (trace_view_on)
-			{
-				printf("[cycle %d]SQUASHED!\n", cycle_number);
-				printf("[cycle %d]SQUASHED!\n", cycle_number);
-			}
-			squash_table[squash_pos] = 0;
 		}
 		
 		// Cascade States
@@ -412,15 +401,37 @@ int main(int argc, char **argv)
 		EX_2 = ID_2;
 		ID_2 = IF_2;
 		
-		if(size)
+		if (branch_flag > 0)
 		{
+			if (branch_flag == 2)
+			{
+				IF_1 = BRANCH_TEMP_2_1;
+				IF_2 = BRANCH_TEMP_2_2;
+			}
+			else if (branch_flag == 1)
+			{
+				IF_1 = BRANCH_TEMP_1_1;
+				IF_2 = BRANCH_TEMP_2_2;
+			}
+			branch_flag--;
+		}
+		else
+		{
+			size = trace_get_item(&tr_entry);
+			IF_1 = *tr_entry;
 			IF_2 = *tr_entry;
 		}
-			IF_1 = *tr_entry;
-		if(!size && flag == 0)
+		
+		if(!size && stop_flag == 0)
 		{ 
-			flag = 1;
-			stop = cycle_number + 4;
+			stop_flag = 1;
+		}
+		
+		if (stop_flag == 1)
+		{
+			stop_counter++;
+			IF_1.type = 0;
+			IF_2.type = 0;
 		}
 		
 		cycle_number++;

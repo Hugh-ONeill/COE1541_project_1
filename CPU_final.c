@@ -88,9 +88,6 @@ int main(int argc, char **argv)
 	int prediction_lookup;
 	int prediction_table[3] = {-1, -1, -1};
 	
-	int squash_pos = 0;
-	int squash_table[3] = {-1, -1, -1};
-	
 	int branch_table[64][3];
 	unsigned int branch_row;
 	unsigned int branch_col;
@@ -193,7 +190,13 @@ int main(int argc, char **argv)
 				// Branch Was Taken
 				if(ID.PC - EX.PC != 4)
 				{
-					squash_table[squash_pos] = 1;
+					BRANCH_TEMP_1 = IF;
+					BRANCH_TEMP_2 = ID;
+						
+					IF.type = 0;
+					ID.type = 0;
+						
+					branch_flag = 2;
 				}
 				else
 				{
@@ -331,7 +334,7 @@ int main(int argc, char **argv)
 			//trace_view(ID, cycle_number, "ID");
 			//trace_view(EX, cycle_number, "EX");
 			//trace_view(MEM, cycle_number, "MEM");
-			trace_view(WB, cycle_number, "WB");
+			trace_view(WB, cycle_number);
 		}
 	}
 	
