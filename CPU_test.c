@@ -2,7 +2,10 @@
 /* CS/COE 1541				 			
 just compile with gcc -o pipeline pipeline.c			
 and execute using							
-./pipeline  /afs/cs.pitt.edu/courses/1541/short_traces/sample.tr	0  
+./pipeline  /afs/cs.pitt.edu/courses/1541/short_traces/sample.tr	0
+
+Hugh O
+Nigel B
 
 ***************************************************************/
 
