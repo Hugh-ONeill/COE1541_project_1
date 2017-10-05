@@ -197,7 +197,6 @@ int main(int argc, char **argv)
 				printf("+ Simulation terminates at cycle : %u\n", cycle_number);
 				break;
 			}
-			
 		}
 
 		// Branch Control
@@ -215,6 +214,8 @@ int main(int argc, char **argv)
 			{
 				printf("[cycle %d]SQUASHED!\n", cycle_number);
 			}
+			
+			branch_flag = 0;
 		}
 		
 		// Cascade States
@@ -233,12 +234,19 @@ int main(int argc, char **argv)
 			flag = 1;
 			stop = cycle_number + 4;
 		}
+		
 		cycle_number++;
 
 		// Print Executed Instructions (trace_view_on=1)
 		if (trace_view_on)
 		{
 			trace_view(WB, cycle_number);
+		}
+		
+		// TEST
+		if (cycle_number > 99)
+		{
+			return;
 		}
 	}
 

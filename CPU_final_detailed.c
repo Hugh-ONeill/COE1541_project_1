@@ -52,7 +52,7 @@ void trace_view(struct trace_item stage, int cycle_number, char* name)
 			printf(" (PC: %x) (sReg_a: %d)(addr: %x)\n", stage.PC, stage.dReg, stage.Addr);
 			break;
 		default :
-			printf("NOP (%d):\n", stage.type);
+			printf("NOP:\n");
 			break;
 	}
 }
@@ -76,12 +76,17 @@ int main(int argc, char **argv)
 	int flag = 0;
 	int branch_flag = 0;
 	int branch_stop = 0;
-	int branch_mask = (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7) | (1 << 8) | (1 << 9);
-	unsigned int last_result_addr;
-	unsigned int branch_addr;
-	unsigned int prev_branch_addr;
+	int branch_mask = 1008;//(1 << 4) | (1 << 5) | (1 << 6) | (1 << 7) | (1 << 8) | (1 << 9);
+	unsigned int last_result_index;
+	unsigned int branch_index;
+	unsigned int prev_branch_index;
 	int prediction;
-	int branch_table[64];
+	int prediction_pos = -1;
+	int prediction_lookup;
+	int prediction_table[3] = {-1, -1, -1};
+	int squash_pos = 0;
+	int squash_table[3] = {-1, -1, -1};
+	int branch_table[64][3];
 	unsigned int pos_row;
 	unsigned int pos_col;
 
@@ -131,12 +136,36 @@ int main(int argc, char **argv)
 	// Initialize Branch Table
 	for (pos_row = 0; pos_row < 63; pos_row++)
 	{
-		branch_table[pos_row] = -1;
+		for (pos_col = 0; pos_col < 2; pos_col++)
+		{
+			branch_table[pos_row][pos_col] = -1;
+		}
 	}
 
 	// Start Processes
 	while(1)
 	{
+		// IF Processing
+		if((prediction_method == 1) && (IF.type == 5))
+		{
+			last_result_index = (IF.PC & branch_mask) >> 4;
+			prediction = branch_table[last_result_index][0];
+			prediction_table[prediction_pos] = prediction;
+			if (trace_view_on)
+			{
+				printf("[IF:%d]------------------------------------------------------------------------------------------\n", cycle_number);
+				printf("[Index]:\t%d\n[Position]:\t%d\n[Prediction]:\t%d\n", last_result_index, prediction_pos, prediction);
+				//printf("[IF:%d]------------------------------------------------------------------------------------------\n", cycle_number);
+			}
+		}
+		
+		// When IF Instruction is in EX stage, prediction_pos will be the same
+		prediction_pos++;
+		if (prediction_pos > 2)
+		{
+			prediction_pos = 0;
+		}
+		
 		// EX Processing
 		// Data Hazard
 		if((EX.type == 3) && (EX.dReg == IF.sReg_a || EX.dReg == IF.sReg_b))
@@ -146,7 +175,8 @@ int main(int argc, char **argv)
 			ID.type = 0;
 			if (trace_view_on)
 			{
-				printf("DATA HAZARD DETECTED! STALLING.\n");
+				printf("------------------------------------------------------------------------------------------------\n");
+				printf("DATA HAZARD DETECTED!\tSTALL!\n");
 			}
 		}
 		// Branch Prediction
@@ -158,8 +188,7 @@ int main(int argc, char **argv)
 				// Branch Was Taken
 				if(ID.PC - EX.PC != 4)
 				{
-					branch_flag = 1;
-					branch_stop = cycle_number + 2;
+					squash_table[squash_pos] = 1;
 				}
 				else
 				{
@@ -172,29 +201,38 @@ int main(int argc, char **argv)
 			if(prediction_method == 1)
 			{				
 				// Mask Bits To Get 9-4 Of Address
-				branch_addr = (EX.Addr & branch_mask) >> 4;
+				branch_index = (EX.PC & branch_mask) >> 4;
+				branch_table[branch_index][1] = EX.PC;
+				
+				prediction = prediction_table[prediction_pos];
 				
 				// Compare Prediction To Current
+				// Prediction = Prev Actual = Current Item in Branch Table
+				// Do Not Have To Flag At ID
 				if(ID.PC - EX.PC != 4)
 				{
 					if (trace_view_on)
 					{
-						printf("[Prediction]:\t%d\n[Actual]:\t1\n", branch_table[branch_addr]);
+						printf("[EX:%d]------------------------------------------------------------------------------------------\n", cycle_number);
+						printf("[Index]:\t%d\n[Position]:\t%d\n[Prediction]:\t%d\n[Actual]:\t1\n", branch_index, prediction_pos, prediction);
+						//printf("[EX:%d]------------------------------------------------------------------------------------------\n", cycle_number);
 					}
-					if (branch_table[branch_addr] != 1)
+					// Prediction != 1
+					if (prediction != 1)
 					{
-						branch_flag = 1;
-						branch_stop = cycle_number + 2;
+						squash_table[squash_pos] = 1;
 					}
-					branch_table[branch_addr] = 1;
+					branch_table[branch_index][0] = 1;
+					branch_table[branch_index][2] = EX.Addr;
 				}
 				else
 				{
 					if (trace_view_on)
 					{
-						printf("[Prediction]:\t%d\n[Actual]:\t0\n", branch_table[branch_addr]);
+						printf("[Index]:\t%d\n[Prediction]:\t%d\n[Actual]:\t0\n", branch_index, prediction);
 					}
-					branch_table[branch_addr] = 0;
+					branch_table[branch_index][0] = 0;
+					branch_table[branch_index][2] = EX.PC + 4;
 				}
 				
 				size = trace_get_item(&tr_entry);
@@ -212,26 +250,39 @@ int main(int argc, char **argv)
 			}
 			
 		}
+		
+		// When EX Instruction is in WB stage, squash_pos will be the same
+		squash_pos++;
+		if (squash_pos > 2)
+		{
+			squash_pos = 0;
+		}
 
 		// Branch Control
-		// When Branch in WB was in EX, command in ID was not (PC+4)
-		// So a Branch was Taken
-		if((cycle_number == branch_stop) && branch_flag == 1)
+		if(squash_table[squash_pos] == 1)
 		{
+			// Insert Squashed "Cycles"
 			cycle_number++;
 			if (trace_view_on)
 			{
 				printf("------------------------------------------------------------------------------------------------\n");
-				printf("\t[cycle %d]",cycle_number);
-				printf("\tSQUASHED!\n");
+				trace_view(IF, cycle_number, "IF");
+				trace_view(ID, cycle_number, "ID");
+				trace_view(EX, cycle_number, "EX");
+				trace_view(MEM, cycle_number, "MEM");
+				printf("[WB]\t[cycle %d]\tSQUASHED!\n", cycle_number);
 			}
 			cycle_number++;
 			if (trace_view_on)
 			{
 				printf("------------------------------------------------------------------------------------------------\n");
-				printf("\t[cycle %d]",cycle_number);
-				printf("\tSQUASHED!\n");
+				trace_view(IF, cycle_number, "IF");
+				trace_view(ID, cycle_number, "ID");
+				trace_view(EX, cycle_number, "EX");
+				trace_view(MEM, cycle_number, "MEM");
+				printf("[WB]\t[cycle %d]\tSQUASHED!\n", cycle_number);
 			}
+			squash_table[squash_pos] = 0;
 		}
 		
 		// Cascade States
@@ -250,6 +301,7 @@ int main(int argc, char **argv)
 			flag = 1;
 			stop = cycle_number + 4;
 		}
+		
 		cycle_number++;
 
 		// Print Executed Instructions (trace_view_on=1)
@@ -262,6 +314,12 @@ int main(int argc, char **argv)
 			trace_view(MEM, cycle_number, "MEM");
 			trace_view(WB, cycle_number, "WB");
 		}
+		
+		// TEST
+		//if (cycle_number >= 20)
+		//{
+		//	return;
+		//}
 	}
 
 	trace_uninit();

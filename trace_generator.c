@@ -41,7 +41,7 @@ scanf("%d \n", &trcount );
 
 for (i = 0 ; i < trcount ; i++) {
 printf("Enter the fields for instruction %d (PC itype(R|L|S|B) sReg_a sReg_b dReg addr):\n", i);
-scanf("%x %c %d %d %d %x",  &tr_entry->PC, &itype, &tr_entry->sReg_a, &tr_entry->sReg_b, &tr_entry->dReg, &tr_entry->Addr) ;
+scanf("%x %c %c %c %c %x",  &tr_entry->PC, &itype, &tr_entry->sReg_a, &tr_entry->sReg_b, &tr_entry->dReg, &tr_entry->Addr) ;
 repeat = 0 ;
 if(itype == 'R') {tr_entry->type = ti_RTYPE ;} 
   else if (itype == 'L') {tr_entry->type = ti_LOAD;} 
@@ -100,5 +100,3 @@ trace_init();
 
   exit(0);
 }
-
-
