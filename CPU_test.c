@@ -59,7 +59,7 @@ void trace_view(struct trace_item stage, int cycle_number, char* name)
 
 int main(int argc, char **argv)
 {
-	struct trace_item *tr_entry;
+	struct trace_item *tr_entry = NULL;
 	struct trace_item IF;
 	struct trace_item ID;
 	struct trace_item EX;
@@ -205,8 +205,6 @@ int main(int argc, char **argv)
 				{
 					// Branch Was Not Taken
 				}
-		
-				size = trace_get_item(&tr_entry);
 			}
 			// Log Actual Result
 			if(prediction_method == 1)
@@ -249,8 +247,7 @@ int main(int argc, char **argv)
 					}
 					
 					branch_table[branch_index][0] = 1;
-					branch_table[branch_index][2] = EX.Addr;
-						
+					branch_table[branch_index][2] = EX.Addr;	
 				}
 				else
 				{
@@ -261,21 +258,17 @@ int main(int argc, char **argv)
 					branch_table[branch_index][0] = 0;
 					branch_table[branch_index][2] = EX.PC + 4;
 				}
-				
-				size = trace_get_item(&tr_entry);
 			}
 			
 		}
 		// Stop When Hazard Last Instruction
 		else
 		{
-			size = trace_get_item(&tr_entry);
 			if(stop_counter >= 4)
 			{
 				printf("+ Simulation terminates at cycle : %u\n", cycle_number);
 				break;
 			}
-			
 		}
 		
 		// Cascade States
@@ -284,47 +277,43 @@ int main(int argc, char **argv)
 		EX = ID;
 		ID = IF;
 		
-		if(size)
+		if (data_flag == 1)
 		{
-			if (data_flag == 1)
+			IF = DATA_TEMP;
+			data_flag = 0;
+		}
+		else if (branch_flag > 0)
+		{
+			if (branch_flag == 2)
 			{
-				IF = DATA_TEMP;
-				data_flag = 0;
+				IF = BRANCH_TEMP_2;
+				printf("------------------------------------------------------------------------------------------------\n");
+				printf("BRANCHING INSERT %d\n", branch_flag);
+				printf("[BT1] (PC: %x)(sReg_a: %xd)(sReg_b: %d)(dReg: %d)\n", BRANCH_TEMP_1.PC, BRANCH_TEMP_1.sReg_a, BRANCH_TEMP_1.sReg_b, BRANCH_TEMP_1.dReg);
+				printf("[BT2] (PC: %x)(sReg_a: %xd)(sReg_b: %d)(dReg: %d)\n", BRANCH_TEMP_2.PC, BRANCH_TEMP_2.sReg_a, BRANCH_TEMP_2.sReg_b, BRANCH_TEMP_2.dReg);
 			}
-			else if (branch_flag > 0)
+			else if (branch_flag == 1)
 			{
-				if (branch_flag == 2)
-				{
-					IF = BRANCH_TEMP_2;
-					printf("------------------------------------------------------------------------------------------------\n");
-					printf("BRANCHING INSERT %d\n", branch_flag);
-					printf("[BT1] (PC: %x)(sReg_a: %xd)(sReg_b: %d)(dReg: %d)\n", BRANCH_TEMP_1.PC, BRANCH_TEMP_1.sReg_a, BRANCH_TEMP_1.sReg_b, BRANCH_TEMP_1.dReg);
-					printf("[BT2] (PC: %x)(sReg_a: %xd)(sReg_b: %d)(dReg: %d)\n", BRANCH_TEMP_2.PC, BRANCH_TEMP_2.sReg_a, BRANCH_TEMP_2.sReg_b, BRANCH_TEMP_2.dReg);
-						
-				}
-				else if (branch_flag == 1)
-				{
-					IF = BRANCH_TEMP_1;
-					printf("------------------------------------------------------------------------------------------------\n");
-					printf("BRANCHING INSERT %d\n", branch_flag);
-					printf("[BT1] (PC: %x)(sReg_a: %xd)(sReg_b: %d)(dReg: %d)\n", BRANCH_TEMP_1.PC, BRANCH_TEMP_1.sReg_a, BRANCH_TEMP_1.sReg_b, BRANCH_TEMP_1.dReg);
-					printf("[BT2] (PC: %x)(sReg_a: %xd)(sReg_b: %d)(dReg: %d)\n", BRANCH_TEMP_2.PC, BRANCH_TEMP_2.sReg_a, BRANCH_TEMP_2.sReg_b, BRANCH_TEMP_2.dReg);
-				}
-				else
-				{
-					printf("------------------------------------------------------------------------------------------------\n");
-					printf("BRANCHING ERROR %d\n", branch_flag);
-				}
-				
-				branch_flag--;
-			}		
+				IF = BRANCH_TEMP_1;
+				printf("------------------------------------------------------------------------------------------------\n");
+				printf("BRANCHING INSERT %d\n", branch_flag);
+				printf("[BT1] (PC: %x)(sReg_a: %xd)(sReg_b: %d)(dReg: %d)\n", BRANCH_TEMP_1.PC, BRANCH_TEMP_1.sReg_a, BRANCH_TEMP_1.sReg_b, BRANCH_TEMP_1.dReg);
+				printf("[BT2] (PC: %x)(sReg_a: %xd)(sReg_b: %d)(dReg: %d)\n", BRANCH_TEMP_2.PC, BRANCH_TEMP_2.sReg_a, BRANCH_TEMP_2.sReg_b, BRANCH_TEMP_2.dReg);
+			}
 			else
 			{
-				IF = *tr_entry;
 				printf("------------------------------------------------------------------------------------------------\n");
-				printf("TR ENTRY %d\n", IF.type);
-				printf("[IF] (PC: %x)(sReg_a: %xd)(sReg_b: %d)(dReg: %d)\n", IF.PC, IF.sReg_a, IF.sReg_b, IF.dReg);
+				printf("BRANCHING ERROR %d\n", branch_flag);
 			}
+			branch_flag--;
+		}
+		else
+		{
+			size = trace_get_item(&tr_entry);
+			IF = *tr_entry;
+			printf("------------------------------------------------------------------------------------------------\n");
+			printf("TR ENTRY %d\n", IF.type);
+			printf("[IF] (PC: %x)(sReg_a: %xd)(sReg_b: %d)(dReg: %d)\n", IF.PC, IF.sReg_a, IF.sReg_b, IF.dReg);
 		}
 		
 		if(!size && stop_flag == 0)
