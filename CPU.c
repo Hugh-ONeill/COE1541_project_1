@@ -3,13 +3,57 @@
 just compile with gcc -o pipeline pipeline.c			
 and execute using							
 ./pipeline  /afs/cs.pitt.edu/courses/1541/short_traces/sample.tr	0  
-
 ***************************************************************/
 
 #include <stdio.h>
 #include <inttypes.h>
 #include <arpa/inet.h> 
 #include "CPU.h"
+
+void trace_view(struct trace_item stage, int cycle_number)
+{
+	printf("[cycle %d]", cycle_number);
+	switch(stage.type)
+	{
+		case ti_NOP:
+			printf("NOP:\n");
+			break;
+		case ti_RTYPE:
+			printf("RTYPE:");
+			printf(" (PC: %x)(sReg_a: %xd)(sReg_b: %d)(dReg: %d)\n", stage.PC, stage.sReg_a, stage.sReg_b, stage.dReg);
+			break;
+		case ti_ITYPE:
+			printf("ITYPE:");
+			printf(" (PC: %x)(sReg_a: %d)(dReg: %d)(addr: %x)\n", stage.PC, stage.sReg_a, stage.dReg, stage.Addr);
+			break;
+		case ti_LOAD:
+			printf("LOAD:");		 
+			printf(" (PC: %x)(sReg_a: %d)(dReg: %d)(addr: %x)\n", stage.PC, stage.sReg_a, stage.dReg, stage.Addr);
+			break;
+		case ti_STORE:
+			printf("STORE:");	  
+			printf(" (PC: %x)(sReg_a: %d)(sReg_b: %d)(addr: %x)\n", stage.PC, stage.sReg_a, stage.sReg_b, stage.Addr);
+			break;
+		case ti_BRANCH:
+			printf("BRANCH:");
+			printf(" (PC: %x)(sReg_a: %d)(sReg_b: %d)(addr: %x)\n", stage.PC, stage.sReg_a, stage.sReg_b, stage.Addr);
+			break;
+		case ti_JTYPE:
+			printf("JTYPE:");
+			printf(" (PC: %x)(addr: %x)\n", stage.PC, stage.Addr);
+			break;
+		case ti_SPECIAL:
+			printf("SPECIAL:\n");			
+			break;
+		case ti_JRTYPE:
+			printf("JRTYPE:");
+			printf(" (PC: %x) (sReg_a: %d)(addr: %x)\n", stage.PC, stage.dReg, stage.Addr);
+			break;
+		default :
+			printf("NOP:\n");
+			break;
+	}
+}
 
 int main(int argc, char **argv)
 {
@@ -30,10 +74,19 @@ int main(int argc, char **argv)
 	int flag = 0;
 	int branch_flag = 0;
 	int branch_stop = 0;
-	int branch_mask = (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7) | (1 << 8) | (1 << 9);
-	unsigned int branch_address;
-	unsigned int prev_branch_address;
+	int branch_mask = 1008;//(1 << 4) | (1 << 5) | (1 << 6) | (1 << 7) | (1 << 8) | (1 << 9);
+	unsigned int last_result_index;
+	unsigned int branch_index;
+	unsigned int prev_branch_index;
+	int prediction;
+	int prediction_pos = -1;
+	int prediction_lookup;
+	int prediction_table[3] = {-1, -1, -1};
+	int squash_pos = 0;
+	int squash_table[3] = {-1, -1, -1};
 	int branch_table[64][3];
+	unsigned int pos_row;
+	unsigned int pos_col;
 
 	unsigned char t_type = 0;
 	unsigned char t_sReg_a= 0;
@@ -52,12 +105,14 @@ int main(int argc, char **argv)
 	else if (argc == 2)
 	{
 		trace_file_name = argv[1];
+		trace_view_on = 0;
+		prediction_method = 0;
 	}
 	else if (argc == 4)
 	{ 
 		trace_file_name = argv[1];
-		trace_view_on = atoi(argv[2]); 
-		prediction_method = atoi(argv[3]);
+		trace_view_on = atoi(argv[3]); 
+		prediction_method = atoi(argv[2]);
 	}
 	else
 	{
@@ -77,10 +132,36 @@ int main(int argc, char **argv)
 	}
 
 	trace_init();
+	
+	// Initialize Branch Table
+	for (pos_row = 0; pos_row < 63; pos_row++)
+	{
+		for (pos_col = 0; pos_col < 2; pos_col++)
+		{
+			branch_table[pos_row][pos_col] = -1;
+		}
+	}
 
 	// Start Processes
 	while(1)
 	{
+		// IF Processing
+		if((prediction_method == 1) && (IF.type == 5))
+		{
+			last_result_index = (IF.PC & branch_mask) >> 4;
+			prediction = branch_table[last_result_index][0];
+			prediction_table[prediction_pos] = prediction;
+		}
+		
+		// When IF Instruction is in EX stage, prediction_pos will be the same
+		prediction_pos++;
+		if (prediction_pos > 2)
+		{
+			prediction_pos = 0;
+		}
+		
+		// EX Processing
+		// Data Hazard
 		if((EX.type == 3) && (EX.dReg == IF.sReg_a || EX.dReg == IF.sReg_b))
 		{
 			*tr_entry = IF;
@@ -96,8 +177,7 @@ int main(int argc, char **argv)
 				// Branch Was Taken
 				if(ID.PC - EX.PC != 4)
 				{
-					branch_flag = 1;
-					branch_stop = cycle_number + 2;
+					squash_table[squash_pos] = 1;
 				}
 				else
 				{
@@ -106,38 +186,32 @@ int main(int argc, char **argv)
 		
 				size = trace_get_item(&tr_entry);
 			}
-			// TODO
-			// Predict Last Branch Condition
+			// Log Actual Result
 			if(prediction_method == 1)
-			{
-				// (EX.Addr - 4) seems not correct
-				prev_branch_address = (EX.Addr - 4) & branch_mask;
-				if (branch_table[prev_branch_address][0] == 1)
-				{
-					branch_flag = 1;
-					branch_stop = cycle_number + 2;
-				}
-				else
-				{
-					// Predict Not Taken
-				}
-				
-				// Impliment 64 Entry Hash Table
+			{				
 				// Mask Bits To Get 9-4 Of Address
-				branch_address = EX.Addr & branch_mask;
-				branch_table[branch_address][1] = EX.PC;
+				branch_index = (EX.PC & branch_mask) >> 4;
+				branch_table[branch_index][1] = EX.PC;
 				
-				// Branch Taken? Untaken = 0? I'm not sure how to detect that
-				// Somewhere, we have the last address come to mean what we predict next
+				prediction = prediction_table[prediction_pos];
+				
+				// Compare Prediction To Current
+				// Prediction = Prev Actual = Current Item in Branch Table
+				// Do Not Have To Flag At ID
 				if(ID.PC - EX.PC != 4)
 				{
-					branch_table[branch_address][0] = 1;
-					branch_table[branch_address][1] = EX.Addr;
+					// Prediction != 1
+					if (prediction != 1)
+					{
+						squash_table[squash_pos] = 1;
+					}
+					branch_table[branch_index][0] = 1;
+					branch_table[branch_index][2] = EX.Addr;
 				}
 				else
-				{					
-					branch_table[branch_address][0] = 0;
-					branch_table[branch_address][1] = EX.PC + 4;
+				{
+					branch_table[branch_index][0] = 0;
+					branch_table[branch_index][2] = EX.PC + 4;
 				}
 				
 				size = trace_get_item(&tr_entry);
@@ -155,18 +229,29 @@ int main(int argc, char **argv)
 			}
 			
 		}
+		
+		// When EX Instruction is in WB stage, squash_pos will be the same
+		squash_pos++;
+		if (squash_pos > 2)
+		{
+			squash_pos = 0;
+		}
 
 		// Branch Control
-		// When Branch in WB was in EX, command in ID was not (PC+4)
-		// So a Branch was Taken
-		if((cycle_number == branch_stop) && branch_flag == 1)
+		if(squash_table[squash_pos] == 1)
 		{
+			// Insert Squashed "Cycles"
 			cycle_number++;
-			printf("[cycle %d]",cycle_number);
-			printf("SQUASHED!\n");
-			cycle_number++;		
-			printf("[cycle %d]",cycle_number);  	
-			printf("SQUASHED!\n");
+			if (trace_view_on)
+			{
+				printf("[cycle %d]SQUASHED!\n", cycle_number);
+			}
+			cycle_number++;
+			if (trace_view_on)
+			{
+				printf("[cycle %d]SQUASHED!\n", cycle_number);
+			}
+			squash_table[squash_pos] = 0;
 		}
 		
 		// Cascade States
@@ -174,8 +259,7 @@ int main(int argc, char **argv)
 		MEM = EX;
 		EX = ID;
 		ID = IF;
-
-		// What is this?
+		
 		if(size)
 		{
 			IF = *tr_entry;
@@ -186,64 +270,16 @@ int main(int argc, char **argv)
 			flag = 1;
 			stop = cycle_number + 4;
 		}
+		
 		cycle_number++;
-
-		/* 
-		t_type = tr_entry->type;
-		t_sReg_a = tr_entry->sReg_a;
-		t_sReg_b = tr_entry->sReg_b;
-		t_dReg = tr_entry->dReg;
-		t_PC = tr_entry->PC;
-		t_Addr = tr_entry->Addr;
-		*/
 
 		// Print Executed Instructions (trace_view_on=1)
 		if (trace_view_on)
 		{
-			printf("[cycle %d]", cycle_number);
-			switch(WB.type)
-			{
-				case ti_NOP:
-					printf("NOP:\n");
-					break;
-				case ti_RTYPE:
-					printf("RTYPE:");
-					printf(" (PC: %x)(sReg_a: %xd)(sReg_b: %d)(dReg: %d)\n", WB.PC, WB.sReg_a, WB.sReg_b, WB.dReg);
-					break;
-				case ti_ITYPE:
-					printf("ITYPE:");
-					printf(" (PC: %x)(sReg_a: %d)(dReg: %d)(addr: %x)\n", WB.PC, WB.sReg_a, WB.dReg, WB.Addr);
-					break;
-				case ti_LOAD:
-					printf("LOAD:");		 
-					printf(" (PC: %x)(sReg_a: %d)(dReg: %d)(addr: %x)\n", WB.PC, WB.sReg_a, WB.dReg, WB.Addr);
-					break;
-				case ti_STORE:
-					printf("STORE:");	  
-					printf(" (PC: %x)(sReg_a: %d)(sReg_b: %d)(addr: %x)\n", WB.PC, WB.sReg_a, WB.sReg_b, WB.Addr);
-					break;
-				case ti_BRANCH:
-					printf("BRANCH:");
-					printf(" (PC: %x)(sReg_a: %d)(sReg_b: %d)(addr: %x)\n", WB.PC, WB.sReg_a, WB.sReg_b, WB.Addr);
-					break;
-				case ti_JTYPE:
-					printf("JTYPE:");
-					printf(" (PC: %x)(addr: %x)\n", WB.PC, WB.Addr);
-					break;
-				case ti_SPECIAL:
-					printf("SPECIAL:\n");			
-					break;
-				case ti_JRTYPE:
-					printf("JRTYPE:");
-					printf(" (PC: %x) (sReg_a: %d)(addr: %x)\n", WB.PC, WB.dReg, WB.Addr);
-					break;
-			}
+			trace_view(WB, cycle_number);
 		}
 	}
 
 	trace_uninit();
 	exit(0);
 }
-
-
-

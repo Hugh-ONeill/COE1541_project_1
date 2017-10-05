@@ -116,12 +116,14 @@ int main(int argc, char **argv)
 	else if (argc == 2)
 	{
 		trace_file_name = argv[1];
+		trace_view_on = 0;
+		prediction_method = 0;
 	}
 	else if (argc == 4)
 	{ 
 		trace_file_name = argv[1];
-		trace_view_on = atoi(argv[2]); 
-		prediction_method = atoi(argv[3]);
+		trace_view_on = atoi(argv[3]); 
+		prediction_method = atoi(argv[2]);
 	}
 	else
 	{
@@ -130,6 +132,7 @@ int main(int argc, char **argv)
 		fprintf(stdout, "\n which prediction method \n");
 		exit(0);
 	}
+
 
 	// Checking File
 	fprintf(stdout, "\n ** opening file %s\n", trace_file_name);
@@ -258,7 +261,7 @@ int main(int argc, char **argv)
 		//none pushed
 		
 		//utilize fetch
-		//check A for ALU, etch
+		//check A for ALU
 		
 		switch(fetch){
 		case 0://both instructions no ops.
@@ -287,9 +290,6 @@ int main(int argc, char **argv)
 			break;		
 		}
 
-	
-		
-		
 		// IF Processing
 		if((prediction_method == 1) && (IF_2.type == 5))
 		{
@@ -390,10 +390,12 @@ int main(int argc, char **argv)
 			if (trace_view_on)
 			{
 				printf("[cycle %d]SQUASHED!\n", cycle_number);
+				printf("[cycle %d]SQUASHED!\n", cycle_number);
 			}
 			cycle_number++;
 			if (trace_view_on)
 			{
+				printf("[cycle %d]SQUASHED!\n", cycle_number);
 				printf("[cycle %d]SQUASHED!\n", cycle_number);
 			}
 			squash_table[squash_pos] = 0;
