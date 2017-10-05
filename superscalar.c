@@ -215,6 +215,9 @@ int main(int argc, char **argv)
 							fetch = 2;
 						}
 					}
+				else{
+						fetch = 2;
+					}
 				}
 			}
 		}
@@ -238,6 +241,11 @@ int main(int argc, char **argv)
 				fetch = 1;
 			}
 		}
+		else if(prevB.type != 3 && prevA.type != 3){
+				B.type = 0;
+				fetch = 1;
+		}
+		
 		else{
 			A.type = 0;
 			B.type = 0;
