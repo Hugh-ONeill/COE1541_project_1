@@ -79,7 +79,7 @@ int main(int argc, char **argv)
 	unsigned int branch_index;
 	unsigned int prev_branch_index;
 	int prediction;
-	int prediction_pos = -1;
+	int prediction_pos = 0;
 	int prediction_lookup;
 	int prediction_table[3] = {-1, -1, -1};
 	int squash_pos = 0;
@@ -95,6 +95,7 @@ int main(int argc, char **argv)
 	unsigned int t_PC = 0;
 	unsigned int t_Addr = 0;
 	unsigned int cycle_number = 0;
+	int stop_counter = 0;
 
 	// Handling Inputs
 	if (argc == 3)
@@ -222,7 +223,7 @@ int main(int argc, char **argv)
 		else
 		{
 			size = trace_get_item(&tr_entry);
-			if(cycle_number == stop)
+			if(stop_counter => 4)
 			{
 				printf("+ Simulation terminates at cycle : %u\n", cycle_number);
 				break;
@@ -269,6 +270,11 @@ int main(int argc, char **argv)
 		{ 
 			flag = 1;
 			stop = cycle_number + 4;
+		}
+		
+		if (flag == 1)
+		{
+			stop_counter++;
 		}
 		
 		cycle_number++;
