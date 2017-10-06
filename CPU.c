@@ -43,7 +43,7 @@ void trace_view(struct trace_item stage, int cycle_number)
 			printf(" (PC: %x)(addr: %x)\n", stage.PC, stage.Addr);
 			break;
 		case ti_SPECIAL:
-			printf("SPECIAL:\n");			
+			printf("SQUASHED!\n");			
 			break;
 		case ti_JRTYPE:
 			printf("JRTYPE:");
@@ -65,9 +65,12 @@ int main(int argc, char **argv)
 	struct trace_item EX;
 	struct trace_item MEM;
 	struct trace_item WB;
+	struct trace_item temp;
+	struct trace_item temp3;
 	
 	size_t size;
 	char *trace_file_name;
+	int save = -1;
 	int trace_view_on = 0;
 	int prediction_method = 0;
 	int stop = -1;
@@ -96,6 +99,7 @@ int main(int argc, char **argv)
 	unsigned int t_Addr = 0;
 	unsigned int cycle_number = 0;
 	int stop_counter = 0;
+	int data_flag = 0;
 
 	// Handling Inputs
 	if (argc == 3)
@@ -161,14 +165,18 @@ int main(int argc, char **argv)
 			prediction_pos = 0;
 		}
 		
+ 
 		// EX Processing
 		// Data Hazard
 		if((EX.type == 3) && (EX.dReg == IF.sReg_a || EX.dReg == IF.sReg_b))
 		{
-			*tr_entry = IF;
+			temp = IF;
 			IF = ID;
 			ID.type = 0;
+			data_flag = 1;
 		}
+		
+		
 		// Branch Prediction
 		else if(EX.type == 5)
 		{
@@ -178,14 +186,35 @@ int main(int argc, char **argv)
 				// Branch Was Taken
 				if(ID.PC - EX.PC != 4)
 				{
-					squash_table[squash_pos] = 1;
+					//save the instructions and no op them 
+					//deep copy? 
+						temp1.type = IF.type;
+						temp1.Addr = IF.Addr;
+						temp1.PC = IF.PC;
+						temp1.sReg_a = IF.sReg_a;
+						temp1.sReg_b = IF.sReg_b;
+						temp1.dReg = IF.dReg;
+						
+						temp2.type = ID.type;
+						temp2.Addr = ID.Addr;
+						temp2.PC = ID.PC;
+						temp2.sReg_a = ID.sReg_a;
+						temp2.sReg_b = ID.sReg_b;
+						temp2.dReg = ID.dReg;
+						
+						IF.type = 7;
+						ID.type = 7;
+						save = 0;
+						
+						size = trace_get_item(&tr_entry);
+						temp3 = *tr_entry;
 				}
 				else
 				{
-					// Branch Was Not Taken
+					size = trace_get_item(&tr_entry);
 				}
-		
-				size = trace_get_item(&tr_entry);
+
+				
 			}
 			// Log Actual Result
 			if(prediction_method == 1)
@@ -199,31 +228,50 @@ int main(int argc, char **argv)
 				// Compare Prediction To Current
 				// Prediction = Prev Actual = Current Item in Branch Table
 				// Do Not Have To Flag At ID
+				
 				if(ID.PC - EX.PC != 4)
 				{
 					// Prediction != 1
 					if (prediction != 1)
 					{
-						squash_table[squash_pos] = 1;
+						temp1.type = IF.type;
+						temp1.Addr = IF.Addr;
+						temp1.PC = IF.PC;
+						temp1.sReg_a = IF.sReg_a;
+						temp1.sReg_b = IF.sReg_b;
+						temp1.dReg = IF.dReg;
+						
+						temp2.type = ID.type;
+						temp2.Addr = ID.Addr;
+						temp2.PC = ID.PC;
+						temp2.sReg_a = ID.sReg_a;
+						temp2.sReg_b = ID.sReg_b;
+						temp2.dReg = ID.dReg;
+						
+						IF.type = 7;
+						ID.type = 7;
+						save = 0;
 					}
-					branch_table[branch_index][0] = 1;
-					branch_table[branch_index][2] = EX.Addr;
+					branch_table[branch_index][0] = 1;//seems correct
+					branch_table[branch_index][2] = EX.Addr;  //correct
+					size = trace_get_item(&tr_entry);
+					temp3 = *tr_entry;
 				}
 				else
 				{
 					branch_table[branch_index][0] = 0;
 					branch_table[branch_index][2] = EX.PC + 4;
+					size = trace_get_item(&tr_entry);
 				}
-				
-				size = trace_get_item(&tr_entry);
-			}
-			
+			}	
 		}
-		// Stop When Hazard Last Instruction
+		else if(save > -1){
+		//do nothing
+		}
 		else
 		{
 			size = trace_get_item(&tr_entry);
-			if(stop_counter => 4)
+			if(!size)
 			{
 				printf("+ Simulation terminates at cycle : %u\n", cycle_number);
 				break;
@@ -232,51 +280,46 @@ int main(int argc, char **argv)
 		}
 		
 		// When EX Instruction is in WB stage, squash_pos will be the same
-		squash_pos++;
-		if (squash_pos > 2)
-		{
-			squash_pos = 0;
-		}
-
-		// Branch Control
-		if(squash_table[squash_pos] == 1)
-		{
-			// Insert Squashed "Cycles"
-			cycle_number++;
-			if (trace_view_on)
-			{
-				printf("[cycle %d]SQUASHED!\n", cycle_number);
-			}
-			cycle_number++;
-			if (trace_view_on)
-			{
-				printf("[cycle %d]SQUASHED!\n", cycle_number);
-			}
-			squash_table[squash_pos] = 0;
-		}
 		
 		// Cascade States
+
 		WB = MEM;
 		MEM = EX;
-		EX = ID;
+		EX = ID; 
 		ID = IF;
 		
-		if(size)
-		{
-			IF = *tr_entry;
+		if(save < 0){
+			if(size)
+			{
+				if (data_flag)
+				{
+					IF = temp;
+					data_flag = 0;
+				}
+				else
+				{
+					IF = *tr_entry;
+				}
+			}
 		}
-		
-		if(!size && flag == 0)
-		{ 
-			flag = 1;
-			stop = cycle_number + 4;
+		else{
+			switch(save){
+				case 0: 
+				IF = temp1;
+				save++;
+				break;
+				
+				case 1:
+				IF = temp2;
+				save++;
+				break;
+				
+				case 2:
+				IF = temp3;
+				save = -1;
+				break;
+			}		
 		}
-		
-		if (flag == 1)
-		{
-			stop_counter++;
-		}
-		
 		cycle_number++;
 
 		// Print Executed Instructions (trace_view_on=1)

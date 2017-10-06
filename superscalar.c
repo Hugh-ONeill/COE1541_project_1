@@ -49,6 +49,9 @@ void trace_view(struct trace_item stage, int cycle_number)
 			printf("JRTYPE:");
 			printf(" (PC: %x) (sReg_a: %d)(addr: %x)\n", stage.PC, stage.dReg, stage.Addr);
 			break;
+		default :
+			printf("NOP:\n");
+			break;
 	}
 }
 
@@ -61,27 +64,26 @@ int main(int argc, char **argv)
 	struct trace_item instruction_buffer[2];
 	struct trace_item *tr_entry;
 	struct trace_item IF_1;
-	struct trace_item BRANCH_TEMP_1_1;
-	struct trace_item BRANCH_TEMP_2_1;
+	struct trace_item temp1;
+	struct trace_item temp2;
+	struct trace_item temp3;
 	struct trace_item ID_1;
 	struct trace_item EX_1;
 	struct trace_item MEM_1;
 	struct trace_item WB_1;
 	struct trace_item IF_2;
-	struct trace_item BRANCH_TEMP_1_2;
-	struct trace_item BRANCH_TEMP_2_2;
 	struct trace_item ID_2;
 	struct trace_item EX_2;
 	struct trace_item MEM_2;
 	struct trace_item WB_2;
-
 	
 	size_t size;
 	char *trace_file_name;
 	int trace_view_on = 0;
 	int prediction_method = 0;
-	int stop_counter = 0;
-	int stop_flag = 0;
+	int stop = -1;
+	int flag = 0;
+	int save = -1;
 	int branch_flag = 0;
 	int branch_stop = 0;
 	int branch_mask = 1008;//(1 << 4) | (1 << 5) | (1 << 6) | (1 << 7) | (1 << 8) | (1 << 9);
@@ -108,20 +110,22 @@ int main(int argc, char **argv)
 	unsigned int cycle_number = 0;
 
 	// Handling Inputs
-	if (argc == 2)
+	if (argc == 3)
 	{
 		trace_file_name = argv[1];
+		trace_view_on = atoi(argv[2]);
 	}
-	else if (argc == 3)
+	else if (argc == 2)
 	{
 		trace_file_name = argv[1];
-		prediction_method = atoi(argv[2]);
+		trace_view_on = 0;
+		prediction_method = 0;
 	}
 	else if (argc == 4)
 	{ 
 		trace_file_name = argv[1];
-		prediction_method = atoi(argv[2]);
 		trace_view_on = atoi(argv[3]); 
+		prediction_method = atoi(argv[2]);
 	}
 	else
 	{
@@ -130,6 +134,7 @@ int main(int argc, char **argv)
 		fprintf(stdout, "\n which prediction method \n");
 		exit(0);
 	}
+
 
 	// Checking File
 	fprintf(stdout, "\n ** opening file %s\n", trace_file_name);
@@ -159,98 +164,98 @@ int main(int argc, char **argv)
 		//fetch = 1 fetch A
 		//fetch = 2 fetch A and B
 		//note: Will never have to fetch only B	
-		
-		switch(fetch){
-			prevA = instruction_buffer[0]; 
-			prevB = instruction_buffer[1];
-		case 0:
+		if(save<0){
+			switch(fetch){
+				prevA = instruction_buffer[0]; 
+				prevB = instruction_buffer[1];
+			case 0:
 			
-			break;
+				break;
 	
-		case 1:
-			//Retain previous instruction
-			prevA = instruction_buffer[0]; 
-			prevB.type = 0;
-			//Get the instructions into the instruction buffer
-			size = trace_get_item(&tr_entry);
-			instruction_buffer[0] = *tr_entry;
-			break;
+			case 1:
+				//Retain previous instruction
+				prevA = instruction_buffer[0]; 
+				prevB.type = 0;
+				//Get the instructions into the instruction buffer
+				size = trace_get_item(&tr_entry);
+				instruction_buffer[0] = *tr_entry;
+				break;
 	
-		case 2:
-			//Retain previous instructions
-			prevA = instruction_buffer[0]; 
-			prevB = instruction_buffer[1]; 
-			//Get the instructions into the instruction buffer
-			size = trace_get_item(&tr_entry);
-			instruction_buffer[0] = *tr_entry;
-			size = trace_get_item(&tr_entry);
-			instruction_buffer[1] = *tr_entry;
-			break;
+			case 2:
+				//Retain previous instructions
+				prevA = instruction_buffer[0]; 
+				prevB = instruction_buffer[1]; 
+				//Get the instructions into the instruction buffer
+				size = trace_get_item(&tr_entry);
+				instruction_buffer[0] = *tr_entry;
+				size = trace_get_item(&tr_entry);
+				instruction_buffer[1] = *tr_entry;
+				break;
 	
-		}
+			}
 			
-		//check the two instructions in the instruction_buffer to issue to REG	
-		A = instruction_buffer[0];
-		B = instruction_buffer[1];
+			//check the two instructions in the instruction_buffer to issue to REG	
+			A = instruction_buffer[0];
+			B = instruction_buffer[1];
 		
 		
-	if(((A.type == 3 || A.type == 4) && (B.type == 1 || B.type == 2 || B.type == 5|| B.type == 6 || B.type == 8))||((B.type == 3 || B.type == 4) && (A.type == 1 || A.type == 2 ||A.type == 5|| A.type == 6 ||A.type == 8))){
+		if(((A.type == 3 || A.type == 4) && (B.type == 1 || B.type == 2 || B.type == 5|| B.type == 6 || B.type == 8))||((B.type == 3 || B.type == 4) && (A.type == 1 || A.type == 2 ||A.type == 5|| A.type == 6 ||A.type == 8))){
 	
-		if(A.type != 5 && A.type != 6 && A.type != 8){ //first inst is not branch/jump
+			if(A.type != 5 && A.type != 6 && A.type != 8){ //first inst is not branch/jump
 
-			if((A.sReg_a != B.dReg && A.sReg_b != B.dReg) && (B.sReg_a != A.dReg && B.sReg_b != A.dReg)){//no data dependence 
+				if((A.sReg_a != B.dReg && A.sReg_b != B.dReg) && (B.sReg_a != A.dReg && B.sReg_b != A.dReg)){//no data dependence 
 
-				if (prevB.type == 3 && prevA.type == 3){ 
-					if((prevA.dReg != B.sReg_a && prevA.dReg != B.sReg_b) && (prevA.dReg != A.sReg_a && prevA.dReg != A.sReg_b) && (prevB.dReg != B.sReg_a && prevB.dReg != B.sReg_b) && (prevB.dReg != A.sReg_a && prevB.dReg != A.sReg_b)){//check load dependence for previous instructions{
-						fetch = 2;
-					}
-				}
-				else if(prevA.type == 3 && prevB.type != 3){
-					if(prevA.dReg != A.sReg_a && prevA.dReg != A.sReg_b && prevA.dReg != B.sReg_a && prevA.dReg != B.sReg_b){//good
+					if (prevB.type == 3 && prevA.type == 3){ 
+						if((prevA.dReg != B.sReg_a && prevA.dReg != B.sReg_b) && (prevA.dReg != A.sReg_a && prevA.dReg != A.sReg_b) && (prevB.dReg != B.sReg_a && prevB.dReg != B.sReg_b) && (prevB.dReg != A.sReg_a && prevB.dReg != A.sReg_b)){//check load dependence for previous instructions{
 							fetch = 2;
 						}
 					}
-				else if (prevB.type == 3 && prevA.type != 3){ //if the first of the two instructions does not have a load/use dependence
-					if(prevB.dReg != A.sReg_a && prevB.dReg != A.sReg_b && prevB.dReg != B.sReg_a && prevB.dReg != B.sReg_b){//good
+					else if(prevA.type == 3 && prevB.type != 3){
+						if(prevA.dReg != A.sReg_a && prevA.dReg != A.sReg_b && prevA.dReg != B.sReg_a && prevA.dReg != B.sReg_b){//good
+								fetch = 2;
+							}
+						}
+					else if (prevB.type == 3 && prevA.type != 3){ //if the first of the two instructions does not have a load/use dependence
+						if(prevB.dReg != A.sReg_a && prevB.dReg != A.sReg_b && prevB.dReg != B.sReg_a && prevB.dReg != B.sReg_b){//good
+								fetch = 2;
+							}
+						}
+					else{
 							fetch = 2;
 						}
 					}
-				else{
-						fetch = 2;
-					}
 				}
 			}
-		}
 
 
-		else if(prevA.type == 3 && prevB.type != 3){ //if the first of the two instructions does not have a load/use dependence
-			if(prevA.dReg != A.sReg_a && prevA.dReg != A.sReg_b){//good
-				B.type = 0;
-				fetch = 1;
+			else if(prevA.type == 3 && prevB.type != 3){ //if the first of the two instructions does not have a load/use dependence
+				if(prevA.dReg != A.sReg_a && prevA.dReg != A.sReg_b){//good
+					B.type = 0;
+					fetch = 1;
+				}
 			}
-		}
-		else if (prevB.type == 3 && prevA.type != 3){ //if the first of the two instructions does not have a load/use dependence
-			if(prevB.dReg != A.sReg_a && prevB.dReg != A.sReg_b){//good
-				B.type = 0;
-				fetch = 1;
+			else if (prevB.type == 3 && prevA.type != 3){ //if the first of the two instructions does not have a load/use dependence
+				if(prevB.dReg != A.sReg_a && prevB.dReg != A.sReg_b){//good
+					B.type = 0;
+					fetch = 1;
+				}
 			}
-		}
-		else if (prevB.type == 3 && prevA.type == 3){ //if the first of the two instructions does not have a load/use dependence
-			if((prevB.dReg != A.sReg_a && prevB.dReg != A.sReg_b) && (prevA.dReg != A.sReg_a && prevA.dReg != A.sReg_b)){
-				B.type = 0;
-				fetch = 1;
+			else if (prevB.type == 3 && prevA.type == 3){ //if the first of the two instructions does not have a load/use dependence
+				if((prevB.dReg != A.sReg_a && prevB.dReg != A.sReg_b) && (prevA.dReg != A.sReg_a && prevA.dReg != A.sReg_b)){
+					B.type = 0;
+					fetch = 1;
+				}
 			}
-		}
-		else if(prevB.type != 3 && prevA.type != 3){
-				B.type = 0;
-				fetch = 1;
-		}
+			else if(prevB.type != 3 && prevA.type != 3){
+					B.type = 0;
+					fetch = 1;
+			}
 		
-		else{
-			A.type = 0;
-			B.type = 0;
-			fetch = 0;
-		}
+			else{
+				A.type = 0;
+				B.type = 0;
+				fetch = 0;
+			}
 
 		//Now we need to decide which instruction to push to which pipeline
 		//A and B are pushed
@@ -260,33 +265,51 @@ int main(int argc, char **argv)
 		//utilize fetch
 		//check A for ALU
 		
-		switch(fetch){
-		case 0://both instructions no ops.
-			IF_1 = A;
-			IF_2 = B;
-			break;
-		case 1:
-			if(A.type == 3 || A.type == 4){//A is lw/sw instruction
-				IF_1 = A;
-				IF_2 = B;
+			switch(fetch){
+				case 0://both instructions no ops.
+					IF_1 = A;
+					IF_2 = B;
+					break;
+				case 1:
+					if(A.type == 3 || A.type == 4){//A is lw/sw instruction
+						IF_1 = A;
+						IF_2 = B;
+					}
+					else{//A is not lw/sw instruction. B is noOP
+						IF_1 = B;
+						IF_2 = A;
+					}
+					break;				
+				case 2:
+					if(A.type == 3 || A.type == 4){//A is lw/sw instruction
+						IF_1 = A;
+						IF_2 = B;
+					}
+					else{
+						IF_1 = B;
+						IF_2 = A;
+					}
+					break;		
 			}
-			else{//A is not lw/sw instruction. B is noOP
-				IF_1 = B;
-				IF_2 = A;
-			}
-			break;				
-		case 2:
-			if(A.type == 3 || A.type == 4){//A is lw/sw instruction
-				IF_1 = A;
-				IF_2 = B;
-			}
-			else{
-				IF_1 = B;
-				IF_2 = A;
-			}
-			break;
 		}
-
+		else{//sq
+			switch(save){
+				case 0: 
+				IF_2 = temp1;
+				save++;
+				break;
+				
+				case 1:
+				IF_2 = temp2;
+				save++;
+				break;
+				
+				case 2:
+				IF_2 = temp3;
+				save = -1;
+				break;
+			}		
+		}
 		// IF Processing
 		if((prediction_method == 1) && (IF_2.type == 5))
 		{
@@ -319,24 +342,32 @@ int main(int argc, char **argv)
 				// Branch Was Taken
 				if(ID_2.PC - EX_2.PC != 4)
 				{
-					BRANCH_TEMP_1_1 = IF_1;
-					BRANCH_TEMP_2_1 = ID_1;
-						
-					IF_1.type = 0;
-					ID_1.type = 0;
+					temp1.type = IF_2.type;
+					temp1.Addr = IF_2.Addr;
+					temp1.PC = IF_2.PC;
+					temp1.sReg_a = IF_2.sReg_a;
+					temp1.sReg_b = IF_2.sReg_b;
+					temp1.dReg = IF_2.dReg;
 					
-					BRANCH_TEMP_1_2 = IF_2;
-					BRANCH_TEMP_2_2 = ID_2;
-						
-					IF_2.type = 0;
-					ID_2.type = 0;
-						
-					branch_flag = 2;
+					temp2.type = ID_2.type;
+					temp2.Addr = ID_2.Addr;
+					temp2.PC = ID_2.PC;
+					temp2.sReg_a = ID_2.sReg_a;
+					temp2.sReg_b = ID_2.sReg_b;
+					temp2.dReg = ID_2.dReg;
+					
+					IF_2.type = 7;
+					ID_2.type = 7;
+					save = 0;
+					
+					size = trace_get_item(&tr_entry);
+					temp3 = *tr_entry;
 				}
 				else
 				{
-					// Branch Was Not Taken
+					size = trace_get_item(&tr_entry);
 				}
+		
 			}
 			// Log Actual Result
 			if(prediction_method == 1)
@@ -355,40 +386,56 @@ int main(int argc, char **argv)
 					// Prediction != 1
 					if (prediction != 1)
 					{
-						BRANCH_TEMP_1_1 = IF_1;
-						BRANCH_TEMP_2_1 = ID_1;
-							
-						IF_1.type = 0;
-						ID_1.type = 0;
+						temp1.type = IF_2.type;
+						temp1.Addr = IF_2.Addr;
+						temp1.PC = IF_2.PC;
+						temp1.sReg_a = IF_2.sReg_a;
+						temp1.sReg_b = IF_2.sReg_b;
+						temp1.dReg = IF_2.dReg;
 						
-						BRANCH_TEMP_1_2 = IF_2;
-						BRANCH_TEMP_2_2 = ID_2;
-							
-						IF_2.type = 0;
-						ID_2.type = 0;
-							
-						branch_flag = 2;
+						temp2.type = ID_2.type;
+						temp2.Addr = ID_2.Addr;
+						temp2.PC = ID_2.PC;
+						temp2.sReg_a = ID_2.sReg_a;
+						temp2.sReg_b = ID_2.sReg_b;
+						temp2.dReg = ID_2.dReg;
+						
+						IF_2.type = 7;
+						ID_2.type = 7;
+						save = 0;				
 					}
 					branch_table[branch_index][0] = 1;
 					branch_table[branch_index][2] = EX_2.Addr;
+					size = trace_get_item(&tr_entry);
+					temp3 = *tr_entry;
 				}
 				else
 				{
 					branch_table[branch_index][0] = 0;
 					branch_table[branch_index][2] = EX_2.PC + 4;
 				}
+				
+				size = trace_get_item(&tr_entry);
 			}
 			
+		}
+		else if(save > -1){
+		//nothing
 		}
 		// Stop When Hazard Last Instruction
 		else
 		{
-			if(stop_counter >= 4)
+			size = trace_get_item(&tr_entry);
+			if(!size)
 			{
 				printf("+ Simulation terminates at cycle : %u\n", cycle_number);
 				break;
 			}
+			
 		}
+		
+		// When EX Instruction is in WB stage, squash_pos will be the same
+		// Branch Control
 		
 		// Cascade States
 		WB_1 = MEM_1;
@@ -400,39 +447,6 @@ int main(int argc, char **argv)
 		MEM_2= EX_2;
 		EX_2 = ID_2;
 		ID_2 = IF_2;
-		
-		if (branch_flag > 0)
-		{
-			if (branch_flag == 2)
-			{
-				IF_1 = BRANCH_TEMP_2_1;
-				IF_2 = BRANCH_TEMP_2_2;
-			}
-			else if (branch_flag == 1)
-			{
-				IF_1 = BRANCH_TEMP_1_1;
-				IF_2 = BRANCH_TEMP_1_2;
-			}
-			branch_flag--;
-		}
-		else
-		{
-			size = trace_get_item(&tr_entry);
-			IF_1 = *tr_entry;
-			IF_2 = *tr_entry;
-		}
-		
-		if(!size && stop_flag == 0)
-		{ 
-			stop_flag = 1;
-		}
-		
-		if (stop_flag == 1)
-		{
-			stop_counter++;
-			IF_1.type = 0;
-			IF_2.type = 0;
-		}
 		
 		cycle_number++;
 
