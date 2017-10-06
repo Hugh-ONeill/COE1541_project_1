@@ -1,0 +1,3 @@
+
+ ** opening file sample_large3.tr
++ Simulation terminates at cycle : 110989361
