@@ -1,0 +1,3 @@
+
+ ** opening file sample4.tr
++ Simulation terminates at cycle : 4019221
